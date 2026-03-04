@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>DTM 90 Test Bot</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root { --bg: #121920; --card: #1c2329; --accent: #00b4d8; --border: #2d3842; --text: #ffffff; }
+  body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+  .header { text-align: center; margin-bottom: 20px; font-size: 20px; font-weight: bold; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+  .card { background: var(--card); padding: 15px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 15px; }
+  .field-label { font-size: 14px; color: #aeb9c2; margin-bottom: 5px; display: block; text-align: left; }
+  input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid var(--border); background: #0d1217; color: white; font-size: 16px; box-sizing: border-box; }
+  .btn { background: var(--accent); color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
+  
+  table { width: 100%; border-collapse: collapse; margin-top: 15px; background: var(--card); }
+  th, td { border: 1px solid var(--border); padding: 10px 5px; text-align: center; }
+  th { background: #252e37; font-size: 14px; position: sticky; top: 40px; z-index: 10; }
+  
+  .opt-grid { display: flex; justify-content: center; gap: 12px; }
+  .opt-item { position: relative; width: 24px; height: 24px; }
+  .opt-item input { position: absolute; opacity: 0; cursor: pointer; width: 100%; height: 100%; margin: 0; z-index: 2; }
+  .checkmark { position: absolute; top: 0; left: 0; height: 22px; width: 22px; background: transparent; border: 2px solid #55606a; border-radius: 50%; z-index: 1; }
+  .opt-item input:checked ~ .checkmark { background: var(--accent); border-color: var(--accent); }
+  .opt-item input:checked ~ .checkmark::after { content: ""; position: absolute; width: 8px; height: 8px; background: white; border-radius: 50%; top: 7px; left: 7px; }
+  
+  .timer { position: sticky; top: 0; background: #e63946; padding: 8px; text-align: center; font-weight: bold; border-radius: 5px; z-index: 100; margin-bottom: 10px; }
+  .unanswered { background: rgba(230, 57, 70, 0.15) !important; }
+  .q-num { font-weight: bold; color: #aeb9c2; }
+</style>
+</head>
+<body>
+
+<div id="main-container">
+  <div class="header" id="title">DTM 90 Testlar</div>
+  
+  <div id="init-area" class="card">
+    <span class="field-label">Test kodi</span>
+    <input type="number" id="test_code" placeholder="Kodni kiriting..." />
+    <button class="btn" onclick="startTest()">TESTNI BOSHLASH</button>
+  </div>
+
+  <div id="test-area" style="display: none;">
+    <div id="timer" class="timer">03:00:00</div>
+    
+    <div id="questions_table"></div>
+
+    <div style="margin: 20px 0;">
+      <button class="btn" id="submit_btn" onclick="processData()">YUBORISH</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.expand();
+
+const TOTAL_QUESTIONS = 90;
+const VARIANTS = ['A', 'B', 'C', 'D'];
+
+function startTest() {
+  const code = document.getElementById('test_code').value;
+  if(!code) return alert("Test kodini kiriting!");
+  
+  document.getElementById('init-area').style.display = 'none';
+  document.getElementById('test-area').style.display = 'block';
+  
+  renderQuestions();
+  startTimer();
+}
+
+function renderQuestions() {
+  let html = `<table><tr><th style="width:15%">№</th><th>Variantlar</th></tr>`;
+  
+  for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+    html += `
+      <tr id="row_${i}">
+        <td class="q-num">${i}</td>
+        <td>
+          <div class="opt-grid">
+            ${VARIANTS.map(v => `
+              <div class="opt-item">
+                <input type="radio" name="q${i}" value="${v}">
+                <span class="checkmark"></span>
+                <span style="display:block; margin-top:25px; font-size:10px;">${v}</span>
+              </div>
+            `).join('')}
+          </div>
+        </td>
+      </tr>`;
+  }
+  
+  document.getElementById('questions_table').innerHTML = html + `</table>`;
+}
+
+function startTimer() {
+  let time = 3 * 60 * 60; // 3 soat
+  const timerEl = document.getElementById('timer');
+  const interval = setInterval(() => {
+    let h = Math.floor(time / 3600), 
+        m = Math.floor((time % 3600) / 60), 
+        s = time % 60;
+    
+    timerEl.innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    
+    if (time <= 0) {
+      clearInterval(interval);
+      processData(); // Vaqt tugasa avtomatik yuborish
+    }
+    time--;
+  }, 1000);
+}
+
+function processData() {
+  const testCode = document.getElementById('test_code').value;
+  const results = {};
+  let emptyCount = 0;
+
+  for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+    const sel = document.querySelector(`input[name="q${i}"]:checked`);
+    const row = document.getElementById(`row_${i}`);
+    
+    if (sel) {
+      results[i] = sel.value;
+      row.classList.remove('unanswered');
+    } else {
+      results[i] = "";
+      row.classList.add('unanswered');
+      emptyCount++;
+    }
+  }
+
+  if (emptyCount > 0) {
+    const confirmSend = confirm(`Sizda ${emptyCount} ta belgilanmagan savol bor. Baribir yuborasizmi?`);
+    if (!confirmSend) return;
+  }
+
+  tg.sendData(JSON.stringify({
+    type: "dtm_90",
+    test_code: testCode,
+    keys: results,
+    total: TOTAL_QUESTIONS
+  }));
+  tg.close();
+}
+</script>
+</body>
+</html>
